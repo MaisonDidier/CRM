@@ -108,38 +108,30 @@ export default function ClientCard({
   const handleCustomDateClick = () => {
     if (isUpdating) return;
     
-    // Créer un input temporaire si le ref n'est pas disponible
-    if (!dateInputRef.current) {
-      const input = document.createElement('input');
-      input.type = 'date';
-      input.style.position = 'fixed';
-      input.style.left = '-9999px';
-      document.body.appendChild(input);
-      
-      input.addEventListener('change', (e) => {
-        const target = e.target as HTMLInputElement;
-        if (target.value) {
-          const date = new Date(target.value);
-          date.setHours(12, 0, 0, 0);
-          updateRelanceDate(null, date.toISOString());
-        }
-        document.body.removeChild(input);
-      });
-      
-      input.showPicker?.().catch(() => {
-        input.click();
-      });
+    // Utiliser l'input existant si disponible
+    if (dateInputRef.current) {
+      dateInputRef.current.click();
       return;
     }
-    
-    // Utiliser le ref existant
-    if (typeof dateInputRef.current.showPicker === 'function') {
-      dateInputRef.current.showPicker().catch(() => {
-        dateInputRef.current?.click();
-      });
-    } else {
-      dateInputRef.current.click();
-    }
+
+    // Sinon, créer un input temporaire
+    const input = document.createElement("input");
+    input.type = "date";
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    document.body.appendChild(input);
+
+    input.addEventListener("change", (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.value) {
+        const date = new Date(target.value);
+        date.setHours(12, 0, 0, 0);
+        updateRelanceDate(null, date.toISOString());
+      }
+      document.body.removeChild(input);
+    });
+
+    input.click();
   };
 
   const relanceDue = isRelanceDue(client.date_relance);
