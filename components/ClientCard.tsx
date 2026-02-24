@@ -105,35 +105,6 @@ export default function ClientCard({
     }
   };
 
-  const handleCustomDateClick = () => {
-    if (isUpdating) return;
-    
-    // Utiliser l'input existant si disponible
-    if (dateInputRef.current) {
-      dateInputRef.current.click();
-      return;
-    }
-
-    // Sinon, créer un input temporaire
-    const input = document.createElement("input");
-    input.type = "date";
-    input.style.position = "fixed";
-    input.style.left = "-9999px";
-    document.body.appendChild(input);
-
-    input.addEventListener("change", (e) => {
-      const target = e.target as HTMLInputElement;
-      if (target.value) {
-        const date = new Date(target.value);
-        date.setHours(12, 0, 0, 0);
-        updateRelanceDate(null, date.toISOString());
-      }
-      document.body.removeChild(input);
-    });
-
-    input.click();
-  };
-
   const relanceDue = isRelanceDue(client.date_relance);
 
   return (
@@ -207,32 +178,20 @@ export default function ClientCard({
               >
                 18 mois
               </button>
-              <button
-                type="button"
-                onClick={handleCustomDateClick}
-                disabled={isUpdating}
-                className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50 cursor-pointer"
+              <label
+                className={`relative inline-block px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 cursor-pointer ${isUpdating ? "opacity-50 pointer-events-none" : ""}`}
               >
-                Personnalisé
-              </button>
-              <input
-                ref={dateInputRef}
-                type="date"
-                style={{ 
-                  position: 'absolute',
-                  width: '1px',
-                  height: '1px',
-                  padding: 0,
-                  margin: '-1px',
-                  overflow: 'hidden',
-                  clip: 'rect(0, 0, 0, 0)',
-                  whiteSpace: 'nowrap',
-                  border: 0,
-                  pointerEvents: 'none'
-                }}
-                onChange={handleCustomDate}
-                disabled={isUpdating}
-              />
+                <span className="relative z-0">Personnalisé</span>
+                <input
+                  ref={dateInputRef}
+                  id={`date-relance-${client.id}`}
+                  type="date"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  style={{ zIndex: 1 }}
+                  onChange={handleCustomDate}
+                  disabled={isUpdating}
+                />
+              </label>
               {client.date_relance && (
                 <button
                   onClick={() => setIsEditingRelance(false)}
