@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 // Configuration des services d'envoi
 const USE_EMAIL = process.env.ENABLE_EMAIL_RELANCE === "true";
-const USE_SMS = process.env.ENABLE_SMS_RELANCE === "true";
+// Pour les SMS, on utilise désormais Brevo. On active si une clé API est présente.
+const USE_SMS = !!process.env.BREVO_API_KEY;
 
 interface RelanceClient {
   id: string;
@@ -71,53 +72,53 @@ async function sendEmail(client: RelanceClient): Promise<boolean> {
   }
 }
 
-/**
- * Envoie un SMS via Twilio (payant, ~0.05€ par SMS en France)
- */
 async function sendSMS(client: RelanceClient): Promise<boolean> {
-  if (!USE_SMS || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+  if (!USE_SMS || !process.env.BREVO_API_KEY) {
     return false;
   }
 
   try {
-    const message = client.message_relance.replace("{{prenom}}", client.prenom);
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER; // Format: +33612345678
+    const senderName = process.env.BREVO_SMS_SENDER || "MaisonDidier";
 
-    // Normaliser le numéro de téléphone
-    let toNumber = client.telephone;
-    if (toNumber.startsWith("0")) {
-      toNumber = "+33" + toNumber.substring(1);
-    } else if (!toNumber.startsWith("+")) {
-      toNumber = "+33" + toNumber;
+    // Construire le message avec la personnalisation du prénom
+    const rawMessage = client.message_relance.replace("{{prenom}}", client.prenom);
+    const content = `Maison Didier - ${rawMessage}`;
+
+    // Normaliser le numéro pour Brevo : format 33XXXXXXXXX (sans +)
+    let recipient = client.telephone.replace(/[\s\-\.\(\)]/g, "");
+    if (recipient.startsWith("+33")) {
+      recipient = "33" + recipient.substring(3);
+    } else if (recipient.startsWith("0")) {
+      recipient = "33" + recipient.substring(1);
+    } else if (recipient.startsWith("+")) {
+      // Autre indicatif, on enlève juste le +
+      recipient = recipient.substring(1);
     }
 
-    const response = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: `Basic ${Buffer.from(
-            `${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`
-          ).toString("base64")}`,
-        },
-        body: new URLSearchParams({
-          From: fromNumber!,
-          To: toNumber,
-          Body: message,
-        }),
-      }
-    );
+    const response = await fetch("https://api.brevo.com/v3/transactionalSMS/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "application/json",
+        "api-key": process.env.BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: senderName,
+        recipient,
+        content,
+        type: "transactional",
+      }),
+    });
 
     if (!response.ok) {
       const error = await response.json();
-      console.error("Erreur Twilio:", error);
+      console.error("Erreur Brevo SMS:", error);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error("Erreur lors de l'envoi du SMS:", error);
+    console.error("Erreur lors de l'envoi du SMS via Brevo:", error);
     return false;
   }
 }

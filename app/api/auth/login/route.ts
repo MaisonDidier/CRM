@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const { password } = await request.json();
+    const { password, rememberMe } = await request.json();
 
     if (!password) {
       return NextResponse.json(
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       );
     }
 
-    await createSession();
+    await createSession(rememberMe === true);
 
     return NextResponse.json({ success: true });
   } catch (error) {
