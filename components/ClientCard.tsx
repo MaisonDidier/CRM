@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Client } from "@/types/client";
 
 interface ClientCardProps {
@@ -18,9 +18,7 @@ export default function ClientCard({
 }: ClientCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isEditingRelance, setIsEditingRelance] = useState(false);
-  const [showCustomDateInput, setShowCustomDateInput] = useState(false);
-  const [customDateText, setCustomDateText] = useState("");
-  const [customDateError, setCustomDateError] = useState("");
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const isRelanceDue = (dateRelance: string | null): boolean => {
     if (!dateRelance) return false;
@@ -99,45 +97,24 @@ export default function ClientCard({
     }
   };
 
-  const formatDateInput = (value: string): string => {
-    const digits = value.replace(/\D/g, "").slice(0, 8);
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-  };
-
-  const parseCustomDate = (text: string): Date | null => {
-    const trimmed = text.trim();
-    if (!trimmed) return null;
-    const parts = trimmed.split(/[\/\-.]/);
-    if (parts.length !== 3) return null;
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-    if (year < 2000 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) return null;
-    const date = new Date(year, month, day);
-    if (date.getDate() !== day || date.getMonth() !== month || date.getFullYear() !== year) return null;
-    return date;
-  };
-
-  const handleValidateCustomDate = () => {
-    setCustomDateError("");
-    const date = parseCustomDate(customDateText);
-    if (!date) {
-      setCustomDateError("Date invalide. Utilisez JJ/MM/AAAA");
-      return;
+  const openCalendar = () => {
+    if (isUpdating) return;
+    const input = dateInputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+    } else {
+      input.click();
     }
-    date.setHours(12, 0, 0, 0);
-    setShowCustomDateInput(false);
-    setCustomDateText("");
-    updateRelanceDate(null, date.toISOString());
   };
 
-  const handleOpenCustomDate = () => {
-    setShowCustomDateInput(true);
-    setCustomDateText("");
-    setCustomDateError("");
+  const handleCustomDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value) {
+      const date = new Date(value);
+      date.setHours(12, 0, 0, 0);
+      updateRelanceDate(null, date.toISOString());
+    }
   };
 
   const relanceDue = isRelanceDue(client.date_relance);
@@ -213,52 +190,23 @@ export default function ClientCard({
               >
                 18 mois
               </button>
-              {showCustomDateInput ? (
-                <div className="flex flex-col gap-1 w-full max-w-[200px]">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="JJ/MM/AAAA"
-                      maxLength={10}
-                      value={customDateText}
-                      onChange={(e) => setCustomDateText(formatDateInput(e.target.value))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleValidateCustomDate();
-                      }}
-                      disabled={isUpdating}
-                      className="text-xs border border-gray-300 rounded px-2 py-1.5 w-28 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleValidateCustomDate}
-                      disabled={isUpdating}
-                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-                    >
-                      Valider
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setShowCustomDateInput(false); setCustomDateError(""); }}
-                      className="text-xs text-gray-600 hover:text-gray-800"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                  {customDateError && (
-                    <p className="text-xs text-red-600">{customDateError}</p>
-                  )}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleOpenCustomDate}
-                  disabled={isUpdating}
-                  className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50 cursor-pointer"
-                >
-                  Personnalisé
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={openCalendar}
+                disabled={isUpdating}
+                className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50 cursor-pointer"
+              >
+                Personnalisé
+              </button>
+              <input
+                ref={dateInputRef}
+                type="date"
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={handleCustomDateChange}
+                disabled={isUpdating}
+                className="absolute w-0 h-0 opacity-0 pointer-events-none"
+                aria-hidden
+              />
               {client.date_relance && (
                 <button
                   onClick={() => setIsEditingRelance(false)}

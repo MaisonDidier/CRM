@@ -10,7 +10,7 @@ interface ClientFormProps {
 }
 
 const DEFAULT_MESSAGE =
-  "Bonjour {{prenom}}, c'est votre opticien. Je me permets de vous recontacter suite à votre passage. N'hésitez pas à me dire si je peux vous aider.";
+  "Bonjour {{prenom}}, comme prévu ensemble il y a un an au magasin , voici le message qui nous rappelle que les dernières lunettes ont déjà un an .\nIl est possible de faire un point sur un réglage et d'éventuels remboursements …\nÀ très bientôt \nJean\n\nMaisonDidierOpticiens \n0603365536";
 
 // Fonction de validation du numéro de téléphone
 // Accepte les formats français et internationaux
