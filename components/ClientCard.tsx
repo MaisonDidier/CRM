@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Client } from "@/types/client";
 
 interface ClientCardProps {
@@ -18,7 +18,7 @@ export default function ClientCard({
 }: ClientCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isEditingRelance, setIsEditingRelance] = useState(false);
-  const dateInputRef = useRef<HTMLInputElement>(null);
+  const [showCustomDateInput, setShowCustomDateInput] = useState(false);
 
   const isRelanceDue = (dateRelance: string | null): boolean => {
     if (!dateRelance) return false;
@@ -101,6 +101,7 @@ export default function ClientCard({
     if (e.target.value) {
       const date = new Date(e.target.value);
       date.setHours(12, 0, 0, 0);
+      setShowCustomDateInput(false);
       updateRelanceDate(null, date.toISOString());
     }
   };
@@ -178,20 +179,33 @@ export default function ClientCard({
               >
                 18 mois
               </button>
-              <label
-                className={`relative inline-block px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 cursor-pointer ${isUpdating ? "opacity-50 pointer-events-none" : ""}`}
-              >
-                <span className="relative z-0">Personnalisé</span>
-                <input
-                  ref={dateInputRef}
-                  id={`date-relance-${client.id}`}
-                  type="date"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  style={{ zIndex: 1 }}
-                  onChange={handleCustomDate}
+              {showCustomDateInput ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    onChange={handleCustomDate}
+                    disabled={isUpdating}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomDateInput(false)}
+                    className="text-xs text-gray-600 hover:text-gray-800"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomDateInput(true)}
                   disabled={isUpdating}
-                />
-              </label>
+                  className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50 cursor-pointer"
+                >
+                  Personnalisé
+                </button>
+              )}
               {client.date_relance && (
                 <button
                   onClick={() => setIsEditingRelance(false)}
