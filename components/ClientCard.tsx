@@ -99,6 +99,13 @@ export default function ClientCard({
     }
   };
 
+  const formatDateInput = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  };
+
   const parseCustomDate = (text: string): Date | null => {
     const trimmed = text.trim();
     if (!trimmed) return null;
@@ -215,7 +222,7 @@ export default function ClientCard({
                       placeholder="JJ/MM/AAAA"
                       maxLength={10}
                       value={customDateText}
-                      onChange={(e) => setCustomDateText(e.target.value)}
+                      onChange={(e) => setCustomDateText(formatDateInput(e.target.value))}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleValidateCustomDate();
                       }}
