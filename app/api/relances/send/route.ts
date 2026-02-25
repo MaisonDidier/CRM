@@ -71,26 +71,25 @@ async function sendEmail(client: RelanceClient): Promise<boolean> {
   }
 }
 
-async function sendSMS(client: RelanceClient): Promise<boolean> {
+async function sendSMS(
+  client: RelanceClient,
+  debugError?: (err: unknown) => void
+): Promise<boolean> {
   if (!USE_SMS || !process.env.BREVO_API_KEY) {
     return false;
   }
 
   try {
     const senderName = process.env.BREVO_SMS_SENDER || "MaisonDidier";
-
-    // Construire le message avec la personnalisation du prénom
-    const rawMessage = client.message_relance.replace("{{prenom}}", client.prenom);
+    const rawMessage = (client.message_relance || "").replace("{{prenom}}", client.prenom);
     const content = `Maison Didier - ${rawMessage}`;
 
-    // Normaliser le numéro pour Brevo : format 33XXXXXXXXX (sans +)
     let recipient = client.telephone.replace(/[\s\-\.\(\)]/g, "");
     if (recipient.startsWith("+33")) {
       recipient = "33" + recipient.substring(3);
     } else if (recipient.startsWith("0")) {
       recipient = "33" + recipient.substring(1);
     } else if (recipient.startsWith("+")) {
-      // Autre indicatif, on enlève juste le +
       recipient = recipient.substring(1);
     }
 
@@ -110,14 +109,17 @@ async function sendSMS(client: RelanceClient): Promise<boolean> {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      console.error("Erreur Brevo SMS:", error);
+      const errorData = await response.json();
+      const errMsg = JSON.stringify(errorData);
+      console.error("Erreur Brevo SMS:", errMsg);
+      debugError?.(errorData);
       return false;
     }
 
     return true;
   } catch (error) {
     console.error("Erreur lors de l'envoi du SMS via Brevo:", error);
+    debugError?.(error);
     return false;
   }
 }
@@ -246,6 +248,7 @@ export async function POST(request: Request) {
     const clients = await getClientsToRelance();
     const results = [];
     const debugMode = request.headers.get("x-debug") === "1";
+    const debugErrors: { client: string; error: unknown }[] = [];
 
     for (const client of clients) {
       let emailSent = false;
@@ -255,7 +258,9 @@ export async function POST(request: Request) {
         emailSent = await sendEmail(client);
       }
       if (USE_SMS) {
-        smsSent = await sendSMS(client);
+        smsSent = await sendSMS(client, (err) => {
+          if (debugMode) debugErrors.push({ client: `${client.prenom} ${client.nom}`, error: err });
+        });
       }
 
       if (emailSent || smsSent) {
@@ -280,6 +285,7 @@ export async function POST(request: Request) {
         useSms: USE_SMS,
         useEmail: USE_EMAIL,
         todayParis: getTodayParis(),
+        smsErrors: debugErrors.length > 0 ? debugErrors : undefined,
         clients: clients.map((c) => ({
           name: `${c.prenom} ${c.nom}`,
           telephone: c.telephone,
