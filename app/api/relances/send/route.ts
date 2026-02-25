@@ -245,22 +245,19 @@ export async function POST(request: Request) {
 
     const clients = await getClientsToRelance();
     const results = [];
+    const debugMode = request.headers.get("x-debug") === "1";
 
     for (const client of clients) {
       let emailSent = false;
       let smsSent = false;
 
-      // Essayer d'envoyer par email
       if (USE_EMAIL) {
         emailSent = await sendEmail(client);
       }
-
-      // Essayer d'envoyer par SMS
       if (USE_SMS) {
         smsSent = await sendSMS(client);
       }
 
-      // Si au moins un envoi a réussi, marquer comme envoyé
       if (emailSent || smsSent) {
         await markRelanceSent(client.id);
         results.push({
@@ -272,11 +269,25 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    const response: Record<string, unknown> = {
       success: true,
       clientsProcessed: results.length,
       results,
-    });
+    };
+    if (debugMode) {
+      response.debug = {
+        clientsFound: clients.length,
+        useSms: USE_SMS,
+        useEmail: USE_EMAIL,
+        todayParis: getTodayParis(),
+        clients: clients.map((c) => ({
+          name: `${c.prenom} ${c.nom}`,
+          telephone: c.telephone,
+          date_relance: c.date_relance,
+        })),
+      };
+    }
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Erreur lors de l'envoi des relances:", error);
     return NextResponse.json(
