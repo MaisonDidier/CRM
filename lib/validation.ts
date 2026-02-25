@@ -6,20 +6,46 @@ const MAX_LENGTH = {
   message_relance: 2000,
 };
 
-// Fonction de sanitization pour prévenir XSS
+/**
+ * Normalise les apostrophes typographiques (Word, Google Docs, etc.)
+ * en apostrophes droites pour éviter les caractères bizarres (â€™, etc.)
+ * - U+2019 ' (RIGHT SINGLE QUOTATION MARK) -> '
+ * - U+2018 ' (LEFT SINGLE QUOTATION MARK) -> '
+ * - U+00B4 ´ (ACUTE ACCENT utilisé comme apostrophe) -> '
+ * - &#x27; / &#39; (entités HTML stockées par erreur) -> '
+ */
+export function normalizeApostrophes(input: string): string {
+  if (typeof input !== "string") return "";
+  return input
+    .replace(/\u2019/g, "'") // ' typographique
+    .replace(/\u2018/g, "'") // ' typographique
+    .replace(/\u00B4/g, "'") // ´ accent aigu
+    .replace(/&#x27;/g, "'") // entité HTML (legacy)
+    .replace(/&#39;/g, "'") // entité HTML (legacy)
+    .trim();
+}
+
+/**
+ * Nettoie et normalise une chaîne pour le stockage.
+ * Conserve les apostrophes (d'Angelo, l'église) mais normalise les variantes typographiques.
+ */
 export function sanitizeString(input: string): string {
-  if (typeof input !== "string") {
-    return "";
-  }
-  
-  // Échapper les caractères HTML dangereux
+  if (typeof input !== "string") return "";
+  return normalizeApostrophes(input);
+}
+
+/**
+ * Échappe le HTML pour affichage sécurisé (emails, etc.)
+ * À utiliser uniquement lors de l'injection dans du HTML.
+ */
+export function escapeHtmlForDisplay(input: string): string {
+  if (typeof input !== "string") return "";
   return input
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .trim();
+    .replace(/'/g, "&#39;");
 }
 
 // Fonction de validation de longueur
@@ -46,8 +72,8 @@ export function validateName(name: string): { valid: boolean; error?: string } {
     return { valid: false, error: `Le nom ne peut pas dépasser ${MAX_LENGTH.prenom} caractères` };
   }
   
-  // Vérifier qu'il n'y a pas de caractères dangereux
-  if (/[<>\"']/.test(trimmed)) {
+  // Vérifier qu'il n'y a pas de caractères dangereux (XSS) - les apostrophes sont autorisées (d'Angelo, l'Église)
+  if (/[<>"]/.test(trimmed)) {
     return { valid: false, error: "Le nom contient des caractères invalides" };
   }
   

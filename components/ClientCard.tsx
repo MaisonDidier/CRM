@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Client } from "@/types/client";
+import { normalizeApostrophes } from "@/lib/validation";
 
 interface ClientCardProps {
   client: Client;
@@ -123,7 +124,7 @@ export default function ClientCard({
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">
-            {client.prenom} {client.nom}
+            {normalizeApostrophes(client.prenom)} {normalizeApostrophes(client.nom)}
           </h3>
           <p className="text-sm text-gray-600 mt-1">{client.telephone}</p>
         </div>
@@ -142,7 +143,7 @@ export default function ClientCard({
         {client.message_relance && (
           <div className="mt-2 p-3 bg-gray-50 rounded text-sm text-gray-700">
             <span className="font-medium">Message :</span>
-            <p className="mt-1 whitespace-pre-wrap">{client.message_relance}</p>
+            <p className="mt-1 whitespace-pre-wrap">{normalizeApostrophes(client.message_relance)}</p>
           </div>
         )}
       </div>

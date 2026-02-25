@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { normalizeApostrophes, escapeHtmlForDisplay } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -26,29 +27,32 @@ async function sendEmail(client: RelanceClient): Promise<boolean> {
   }
 
   try {
-    const message = client.message_relance.replace("{{prenom}}", client.prenom);
+    const prenom = normalizeApostrophes(client.prenom);
+    const nom = normalizeApostrophes(client.nom);
+    const rawMessage = client.message_relance.replace("{{prenom}}", prenom);
+    const message = normalizeApostrophes(rawMessage);
     const fromEmail = process.env.EMAIL_FROM || "noreply@votredomaine.com";
     const toEmail = process.env.EMAIL_TO || "contact@votredomaine.com"; // Email de test
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
         from: fromEmail,
         to: [toEmail], // Pour l'instant, on envoie à un email de test
-        subject: `Relance pour ${client.prenom} ${client.nom}`,
+        subject: `Relance pour ${prenom} ${nom}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2>Relance client</h2>
-            <p><strong>Client:</strong> ${client.prenom} ${client.nom}</p>
-            <p><strong>Téléphone:</strong> ${client.telephone}</p>
+            <p><strong>Client:</strong> ${escapeHtmlForDisplay(prenom)} ${escapeHtmlForDisplay(nom)}</p>
+            <p><strong>Téléphone:</strong> ${escapeHtmlForDisplay(client.telephone)}</p>
             <hr>
             <p><strong>Message à envoyer:</strong></p>
             <p style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
-              ${message.replace(/\n/g, "<br>")}
+              ${escapeHtmlForDisplay(message).replace(/\n/g, "<br>")}
             </p>
             <p style="color: #666; font-size: 12px; margin-top: 20px;">
               Ce message doit être envoyé manuellement au client par SMS ou téléphone.
@@ -83,8 +87,9 @@ async function sendSMS(
     // Brevo exige max 11 caractères pour le sender alphanumérique
     const rawSender = process.env.BREVO_SMS_SENDER || "MaisonDidier";
     const senderName = rawSender.replace(/\s/g, "").slice(0, 11);
-    const rawMessage = (client.message_relance || "").replace("{{prenom}}", client.prenom);
-    const content = `Maison Didier - ${rawMessage}`;
+    const prenom = normalizeApostrophes(client.prenom);
+    const rawMessage = (client.message_relance || "").replace("{{prenom}}", prenom);
+    const content = `Maison Didier - ${normalizeApostrophes(rawMessage)}`;
 
     let recipient = client.telephone.replace(/[\s\-\.\(\)]/g, "");
     if (recipient.startsWith("+33")) {
