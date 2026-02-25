@@ -80,7 +80,9 @@ async function sendSMS(
   }
 
   try {
-    const senderName = process.env.BREVO_SMS_SENDER || "MaisonDidier";
+    // Brevo exige max 11 caractères pour le sender alphanumérique
+    const rawSender = process.env.BREVO_SMS_SENDER || "MaisonDidier";
+    const senderName = rawSender.replace(/\s/g, "").slice(0, 11);
     const rawMessage = (client.message_relance || "").replace("{{prenom}}", client.prenom);
     const content = `Maison Didier - ${rawMessage}`;
 
