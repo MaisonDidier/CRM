@@ -89,7 +89,7 @@ async function sendSMS(
     const senderName = rawSender.replace(/\s/g, "").slice(0, 11);
     const prenom = normalizeApostrophes(client.prenom);
     const rawMessage = (client.message_relance || "").replace("{{prenom}}", prenom);
-    const content = `Maison Didier - ${normalizeApostrophes(rawMessage)}`;
+    const content = normalizeApostrophes(rawMessage);
 
     let recipient = client.telephone.replace(/[\s\-\.\(\)]/g, "");
     if (recipient.startsWith("+33")) {
