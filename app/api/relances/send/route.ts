@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { isAuthenticated } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -145,64 +144,96 @@ async function markRelanceSent(clientId: string): Promise<void> {
   }
 }
 
+const PARIS_TZ = "Europe/Paris";
+
+/**
+ * Retourne la date du jour au format YYYY-MM-DD dans le fuseau Europe/Paris
+ */
+function getTodayParis(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: PARIS_TZ });
+}
+
+/**
+ * Retourne l'offset Paris (ex: +01:00 ou +02:00) pour gérer l'heure d'été
+ */
+function getParisOffset(): string {
+  const str = new Date().toLocaleString("en-US", {
+    timeZone: PARIS_TZ,
+    timeZoneName: "longOffset",
+  });
+  const match = str.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+  if (match) {
+    const sign = match[1];
+    const h = match[2].padStart(2, "0");
+    const m = (match[3] || "00").padStart(2, "0");
+    return `${sign}${h}:${m}`;
+  }
+  return "+01:00";
+}
+
 /**
  * Récupère tous les clients dont la date de relance est aujourd'hui ou passée
+ * Utilise le fuseau Europe/Paris pour être cohérent avec l'affichage côté client
  */
 async function getClientsToRelance(): Promise<RelanceClient[]> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayStr = getTodayParis();
+  const offset = getParisOffset().replace("GMT", "");
+  const endOfTodayParis = new Date(`${todayStr}T23:59:59.999${offset}`);
+  const endOfTodayUTC = endOfTodayParis.toISOString();
 
   const { data, error } = await supabase
     .from("clients")
     .select("*")
     .not("date_relance", "is", null)
-    .lte("date_relance", today.toISOString());
+    .lte("date_relance", endOfTodayUTC);
 
   if (error) {
     throw error;
   }
 
-  // Filtrer côté application les relances déjà envoyées aujourd'hui
-  // (pour éviter les problèmes si la colonne n'existe pas encore)
+  // Filtrer côté application les relances déjà envoyées aujourd'hui (Paris)
   const clients = (data || []) as (RelanceClient & { relance_envoyee_at?: string | null })[];
-  
+  const todayParis = getTodayParis();
+
   return clients.filter((client) => {
-    // Si relance_envoyee_at existe et est aujourd'hui, on ignore
     if (client.relance_envoyee_at) {
-      const sentDate = new Date(client.relance_envoyee_at);
-      sentDate.setHours(0, 0, 0, 0);
-      return sentDate.getTime() !== today.getTime();
+      const sentDateStr = new Date(client.relance_envoyee_at).toLocaleDateString("en-CA", {
+        timeZone: "Europe/Paris",
+      });
+      return sentDateStr !== todayParis;
     }
     return true;
   }) as RelanceClient[];
 }
 
 /**
- * Endpoint pour envoyer les relances (appelé par le cron job)
+ * Vérifie si la requête est autorisée (cron secret uniquement - relances automatiques)
+ */
+function isAuthorized(request: Request): boolean {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    return true;
+  }
+
+  if (!cronSecret && process.env.NODE_ENV !== "production") {
+    console.warn("⚠️  CRON_SECRET non défini - accès non sécurisé en développement");
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Endpoint pour envoyer les relances (appelé par le cron job ou manuellement)
  */
 export async function POST(request: Request) {
   try {
-    // Vérifier l'authentification via un token secret (pour le cron job)
-    // CRITIQUE: Exiger toujours CRON_SECRET en production
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (!cronSecret) {
-      if (process.env.NODE_ENV === "production") {
-        return NextResponse.json(
-          { error: "Configuration manquante" },
-          { status: 500 }
-        );
-      }
-      // En développement, permettre l'accès sans secret (mais avec un avertissement)
-      console.warn("⚠️  CRON_SECRET non défini - accès non sécurisé en développement");
-    } else {
-      // Vérifier le token
-      if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
-        // Délai constant pour éviter les attaques par timing
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-      }
+    const authorized = isAuthorized(request);
+    if (!authorized) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
     if (!isSupabaseConfigured()) {
@@ -250,43 +281,6 @@ export async function POST(request: Request) {
     console.error("Erreur lors de l'envoi des relances:", error);
     return NextResponse.json(
       { error: "Erreur lors de l'envoi des relances" },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * Endpoint GET pour tester manuellement (nécessite authentification)
- */
-export async function GET(request: Request) {
-  try {
-    const authenticated = await isAuthenticated();
-    if (!authenticated) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
-    if (!isSupabaseConfigured()) {
-      return NextResponse.json(
-        { error: "Supabase n'est pas configuré" },
-        { status: 500 }
-      );
-    }
-
-    const clients = await getClientsToRelance();
-
-    return NextResponse.json({
-      clientsToRelance: clients.length,
-      clients: clients.map((c) => ({
-        id: c.id,
-        name: `${c.prenom} ${c.nom}`,
-        telephone: c.telephone,
-        date_relance: c.date_relance,
-      })),
-    });
-  } catch (error) {
-    console.error("Erreur lors de la récupération des relances:", error);
-    return NextResponse.json(
-      { error: "Erreur lors de la récupération des relances" },
       { status: 500 }
     );
   }

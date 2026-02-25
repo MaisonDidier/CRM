@@ -28,6 +28,9 @@ yarn-error.log*
 .env*.local
 .env
 
+# git credentials (repo-specific, ne pas committer)
+.git-credentials-maisondidier
+
 # vercel
 .vercel
 

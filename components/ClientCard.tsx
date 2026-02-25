@@ -20,13 +20,12 @@ export default function ClientCard({
   const [isEditingRelance, setIsEditingRelance] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
-  const isRelanceDue = (dateRelance: string | null): boolean => {
-    if (!dateRelance) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const relanceDate = new Date(dateRelance);
-    relanceDate.setHours(0, 0, 0, 0);
-    return relanceDate <= today;
+  const isRelanceRecent = (relanceEnvoyeeAt: string | null | undefined): boolean => {
+    if (!relanceEnvoyeeAt) return false;
+    const sentAt = new Date(relanceEnvoyeeAt).getTime();
+    const now = Date.now();
+    const twentyFourHours = 24 * 60 * 60 * 1000;
+    return now - sentAt < twentyFourHours;
   };
 
   const formatDate = (dateString: string | null): string => {
@@ -117,14 +116,10 @@ export default function ClientCard({
     }
   };
 
-  const relanceDue = isRelanceDue(client.date_relance);
+  const relanceRecent = isRelanceRecent(client.relance_envoyee_at);
 
   return (
-    <div
-      className={`bg-white rounded-lg shadow p-6 ${
-        relanceDue ? "border-2 border-red-500" : "border border-gray-200"
-      }`}
-    >
+    <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">
@@ -132,9 +127,9 @@ export default function ClientCard({
           </h3>
           <p className="text-sm text-gray-600 mt-1">{client.telephone}</p>
         </div>
-        {relanceDue && (
-          <span className="px-2 py-1 text-xs font-semibold text-white bg-red-500 rounded">
-            À relancer
+        {relanceRecent && (
+          <span className="px-2 py-1 text-xs font-semibold text-white bg-green-500 rounded">
+            Relancé
           </span>
         )}
       </div>
