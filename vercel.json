@@ -7,7 +7,7 @@
   "crons": [
     {
       "path": "/api/relances/send",
-      "schedule": "15 8 * * *"
+      "schedule": "30 8 * * *"
     }
   ]
 }
