@@ -77,21 +77,14 @@ async function sendSMS(
 }
 
 /**
- * Marque une relance comme envoyée dans la base de données
+ * Marque une relance comme envoyée (évite les doublons le même jour)
+ * Ne modifie pas date_relance, uniquement relance_envoyee_at
  */
 async function markRelanceSent(clientId: string): Promise<void> {
   try {
-    // Mettre à jour la date de relance pour éviter les doublons
-    // On ajoute 1 jour pour éviter de renvoyer le même jour
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
     await supabase
       .from("clients")
-      .update({ 
-        date_relance: tomorrow.toISOString(),
-        relance_envoyee_at: new Date().toISOString()
-      })
+      .update({ relance_envoyee_at: new Date().toISOString() })
       .eq("id", clientId);
   } catch (error) {
     console.error("Erreur lors du marquage de la relance:", error);
@@ -252,13 +245,20 @@ export async function POST(request: Request) {
     const debugErrors: { client: string; error: unknown }[] = [];
     const debugBrevoResponses: { client: string; response: unknown }[] = [];
 
-    for (const client of clients) {
+    for (let i = 0; i < clients.length; i++) {
+      const client = clients[i];
       let smsSent = false;
+
+      // Délai entre chaque envoi pour éviter les limites Brevo (2e client parfois ignoré sans délai)
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
 
       if (USE_SMS) {
         smsSent = await sendSMS(
           client,
           (err) => {
+            console.error(`SMS échoué pour ${client.prenom} ${client.nom}:`, err);
             if (debugMode) debugErrors.push({ client: `${client.prenom} ${client.nom}`, error: err });
           },
           (res) => {
