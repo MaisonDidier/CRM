@@ -17,7 +17,8 @@ interface RelanceClient {
 
 async function sendSMS(
   client: RelanceClient,
-  debugError?: (err: unknown) => void
+  debugError?: (err: unknown) => void,
+  debugResponse?: (res: unknown) => void
 ): Promise<boolean> {
   if (!USE_SMS || !process.env.BREVO_API_KEY) {
     return false;
@@ -55,13 +56,17 @@ async function sendSMS(
       }),
     });
 
+    const responseData = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      const errorData = await response.json();
-      const errMsg = JSON.stringify(errorData);
+      const errMsg = JSON.stringify(responseData);
       console.error("Erreur Brevo SMS:", errMsg);
-      debugError?.(errorData);
+      debugError?.({ status: response.status, ...responseData });
       return false;
     }
+
+    // En mode debug : capturer la réponse Brevo
+    debugResponse?.({ status: response.status, ...responseData });
 
     return true;
   } catch (error) {
@@ -245,14 +250,21 @@ export async function POST(request: Request) {
     const results = [];
     const debugMode = request.headers.get("x-debug") === "1";
     const debugErrors: { client: string; error: unknown }[] = [];
+    const debugBrevoResponses: { client: string; response: unknown }[] = [];
 
     for (const client of clients) {
       let smsSent = false;
 
       if (USE_SMS) {
-        smsSent = await sendSMS(client, (err) => {
-          if (debugMode) debugErrors.push({ client: `${client.prenom} ${client.nom}`, error: err });
-        });
+        smsSent = await sendSMS(
+          client,
+          (err) => {
+            if (debugMode) debugErrors.push({ client: `${client.prenom} ${client.nom}`, error: err });
+          },
+          (res) => {
+            if (debugMode) debugBrevoResponses.push({ client: `${client.prenom} ${client.nom}`, response: res });
+          }
+        );
       }
 
       if (smsSent) {
@@ -276,6 +288,7 @@ export async function POST(request: Request) {
         useSms: USE_SMS,
         todayParis: getTodayParis(),
         smsErrors: debugErrors.length > 0 ? debugErrors : undefined,
+        brevoResponses: debugBrevoResponses,
         clients: clients.map((c) => ({
           name: `${c.prenom} ${c.nom}`,
           telephone: c.telephone,
