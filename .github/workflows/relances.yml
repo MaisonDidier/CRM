@@ -3,8 +3,8 @@ name: Relances quotidiennes
 
 on:
   schedule:
-    # 12h05 Paris = 11h05 UTC (heure d'hiver)
-    - cron: '5 11 * * *'
+        # 9h Paris = 8h UTC (heure d'hiver)
+    - cron: '0 8 * * *'
   workflow_dispatch:  # Permet de déclencher manuellement
 
 jobs:
