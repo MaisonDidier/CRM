@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { normalizeApostrophes, escapeHtmlForDisplay } from "@/lib/validation";
+import { normalizeApostrophes } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
-// Configuration des services d'envoi
-const USE_EMAIL = process.env.ENABLE_EMAIL_RELANCE === "true";
-// Pour les SMS, on utilise désormais Brevo. On active si une clé API est présente.
 const USE_SMS = !!process.env.BREVO_API_KEY;
 
 interface RelanceClient {
@@ -16,63 +13,6 @@ interface RelanceClient {
   telephone: string;
   message_relance: string;
   date_relance: string;
-}
-
-/**
- * Envoie un email via Resend (gratuit jusqu'à 3000 emails/mois)
- */
-async function sendEmail(client: RelanceClient): Promise<boolean> {
-  if (!USE_EMAIL || !process.env.RESEND_API_KEY) {
-    return false;
-  }
-
-  try {
-    const prenom = normalizeApostrophes(client.prenom);
-    const nom = normalizeApostrophes(client.nom);
-    const rawMessage = client.message_relance.replace("{{prenom}}", prenom);
-    const message = normalizeApostrophes(rawMessage);
-    const fromEmail = process.env.EMAIL_FROM || "noreply@votredomaine.com";
-    const toEmail = process.env.EMAIL_TO || "contact@votredomaine.com"; // Email de test
-
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: fromEmail,
-        to: [toEmail], // Pour l'instant, on envoie à un email de test
-        subject: `Relance pour ${prenom} ${nom}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Relance client</h2>
-            <p><strong>Client:</strong> ${escapeHtmlForDisplay(prenom)} ${escapeHtmlForDisplay(nom)}</p>
-            <p><strong>Téléphone:</strong> ${escapeHtmlForDisplay(client.telephone)}</p>
-            <hr>
-            <p><strong>Message à envoyer:</strong></p>
-            <p style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
-              ${escapeHtmlForDisplay(message).replace(/\n/g, "<br>")}
-            </p>
-            <p style="color: #666; font-size: 12px; margin-top: 20px;">
-              Ce message doit être envoyé manuellement au client par SMS ou téléphone.
-            </p>
-          </div>
-        `,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error("Erreur Resend:", error);
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error("Erreur lors de l'envoi de l'email:", error);
-    return false;
-  }
 }
 
 async function sendSMS(
@@ -235,7 +175,56 @@ function isAuthorized(request: Request): boolean {
 }
 
 /**
- * Endpoint pour envoyer les relances (appelé par le cron job ou manuellement)
+ * GET : diagnostic sans envoi - vérifie la config et liste les clients éligibles
+ */
+export async function GET(request: Request) {
+  try {
+    const authorized = isAuthorized(request);
+    if (!authorized) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+    }
+
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({
+        ok: false,
+        error: "Supabase non configuré",
+        todayParis: getTodayParis(),
+      });
+    }
+
+    const clients = await getClientsToRelance();
+    const todayStr = getTodayParis();
+    const offset = getParisOffset().replace("GMT", "");
+    const endOfTodayParis = new Date(`${todayStr}T23:59:59.999${offset}`);
+    const endOfTodayUTC = endOfTodayParis.toISOString();
+
+    return NextResponse.json({
+      ok: true,
+      diagnostic: {
+        todayParis: todayStr,
+        endOfTodayUTC,
+        useSms: USE_SMS,
+        hasBrevoKey: !!process.env.BREVO_API_KEY,
+        clientsEligibles: clients.length,
+        clients: clients.map((c) => ({
+          prenom: c.prenom,
+          nom: c.nom,
+          telephone: c.telephone,
+          date_relance: c.date_relance,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("Erreur diagnostic relances:", error);
+    return NextResponse.json(
+      { ok: false, error: String(error) },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST : envoie les relances (appelé par le cron job ou manuellement)
  */
 export async function POST(request: Request) {
   try {
@@ -258,24 +247,19 @@ export async function POST(request: Request) {
     const debugErrors: { client: string; error: unknown }[] = [];
 
     for (const client of clients) {
-      let emailSent = false;
       let smsSent = false;
 
-      if (USE_EMAIL) {
-        emailSent = await sendEmail(client);
-      }
       if (USE_SMS) {
         smsSent = await sendSMS(client, (err) => {
           if (debugMode) debugErrors.push({ client: `${client.prenom} ${client.nom}`, error: err });
         });
       }
 
-      if (emailSent || smsSent) {
+      if (smsSent) {
         await markRelanceSent(client.id);
         results.push({
           clientId: client.id,
           name: `${client.prenom} ${client.nom}`,
-          emailSent,
           smsSent,
         });
       }
@@ -290,7 +274,6 @@ export async function POST(request: Request) {
       response.debug = {
         clientsFound: clients.length,
         useSms: USE_SMS,
-        useEmail: USE_EMAIL,
         todayParis: getTodayParis(),
         smsErrors: debugErrors.length > 0 ? debugErrors : undefined,
         clients: clients.map((c) => ({

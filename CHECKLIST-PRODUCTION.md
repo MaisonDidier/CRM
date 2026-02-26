@@ -11,13 +11,7 @@ Ajoutez ces variables dans Vercel → Settings → Environment Variables :
 - [ ] `NEXT_PUBLIC_SUPABASE_URL` - URL de votre projet Supabase
 - [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Clé anonyme Supabase
 - [ ] `CRON_SECRET` - Généré avec `openssl rand -base64 32` (si relances activées)
-- [ ] `ENABLE_EMAIL_RELANCE` - `true` ou `false`
-- [ ] `RESEND_API_KEY` - Clé API Resend (si email activé)
-- [ ] `EMAIL_FROM` - Email expéditeur (si email activé)
-- [ ] `ENABLE_SMS_RELANCE` - `true` ou `false` (si SMS activé)
-- [ ] `TWILIO_ACCOUNT_SID` - Account SID Twilio (si SMS activé)
-- [ ] `TWILIO_AUTH_TOKEN` - Auth Token Twilio (si SMS activé)
-- [ ] `TWILIO_PHONE_NUMBER` - Numéro Twilio (si SMS activé)
+- [ ] `BREVO_API_KEY` - Clé API Brevo (pour les relances SMS)
 
 ### Génération des Secrets
 
@@ -62,13 +56,11 @@ openssl rand -base64 32
 
 ## 📧 Relances Automatiques (Optionnel)
 
-Si vous activez les relances :
+Si vous activez les relances SMS :
 
-- [ ] Compte Resend créé (pour email)
-- [ ] Domaine vérifié dans Resend (pour email)
-- [ ] Compte Twilio créé (pour SMS)
-- [ ] Numéro de téléphone acheté (pour SMS)
-- [ ] Cron job configuré (cron-job.org ou autre)
+- [ ] Compte Brevo créé (https://www.brevo.com)
+- [ ] Clé API Brevo configurée
+- [ ] Cron job configuré (Vercel ou cron-job.org)
 - [ ] `CRON_SECRET` défini et testé
 
 ## 🧪 Tests de Sécurité
