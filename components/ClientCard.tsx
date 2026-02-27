@@ -19,6 +19,7 @@ export default function ClientCard({
 }: ClientCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isEditingRelance, setIsEditingRelance] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   const isRelanceRecent = (relanceEnvoyeeAt: string | null | undefined): boolean => {
@@ -99,13 +100,15 @@ export default function ClientCard({
 
   const openCalendar = () => {
     if (isUpdating) return;
-    const input = dateInputRef.current;
-    if (!input) return;
-    if (typeof input.showPicker === "function") {
-      input.showPicker();
-    } else {
-      input.click();
-    }
+    setShowDatePicker(true);
+    setTimeout(() => {
+      const input = dateInputRef.current;
+      if (!input) return;
+      input.focus();
+      if (typeof input.showPicker === "function") {
+        try { input.showPicker(); } catch {}
+      }
+    }, 100);
   };
 
   const handleCustomDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,6 +116,7 @@ export default function ClientCard({
     if (value) {
       const date = new Date(value);
       date.setHours(12, 0, 0, 0);
+      setShowDatePicker(false);
       updateRelanceDate(null, date.toISOString());
     }
   };
@@ -194,15 +198,16 @@ export default function ClientCard({
               >
                 Personnalisé
               </button>
-              <input
-                ref={dateInputRef}
-                type="date"
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={handleCustomDateChange}
-                disabled={isUpdating}
-                className="absolute w-0 h-0 opacity-0 pointer-events-none"
-                aria-hidden
-              />
+              {showDatePicker && (
+                <input
+                  ref={dateInputRef}
+                  type="date"
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={handleCustomDateChange}
+                  disabled={isUpdating}
+                  className="px-3 py-1 text-xs border border-gray-300 rounded"
+                />
+              )}
               {client.date_relance && (
                 <button
                   onClick={() => setIsEditingRelance(false)}

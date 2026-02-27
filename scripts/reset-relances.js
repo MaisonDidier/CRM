@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Reset les clients pour retester les relances SMS.
- * Remet relance_envoyee_at à NULL et date_relance à aujourd'hui pour les 2 clients de test.
+ * Reset TOUS les clients pour retester les relances SMS.
+ * Remet relance_envoyee_at à NULL et date_relance à aujourd'hui.
  */
 
 const fs = require('fs');
@@ -37,50 +37,43 @@ function getTodayParis() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
 }
 
-const CLIENTS_TO_RESET = [
-  { prenom: 'Grégoire', nom: 'Rebbouh' },
-  { prenom: 'Gregoire', nom: 'Rebbouh' },  // fallback sans accent
-  { prenom: 'Jean', nom: 'Fabre' },
-];
-
 async function resetClients() {
   const todayStr = getTodayParis();
   const dateRelance = new Date(`${todayStr}T12:00:00`).toISOString();
 
-  console.log('🔄 Reset des relances pour les 2 clients...\n');
+  console.log('🔄 Reset des relances pour tous les clients...\n');
 
-  const updated = [];
+  const { data: allClients, error: fetchError } = await supabase
+    .from('clients')
+    .select('id');
 
-  for (const { prenom, nom } of CLIENTS_TO_RESET) {
-    const { data, error } = await supabase
-      .from('clients')
-      .update({
-        relance_envoyee_at: null,
-        date_relance: dateRelance,
-      })
-      .eq('prenom', prenom)
-      .eq('nom', nom)
-      .select('id, prenom, nom, telephone, date_relance, relance_envoyee_at');
-
-    if (error) {
-      console.error(`❌ Erreur pour ${prenom} ${nom}:`, error.message);
-      continue;
-    }
-    if (data && data.length > 0) {
-      updated.push(...data);
-    }
-  }
-
-  // Éviter les doublons (Grégoire/Gregoire)
-  const unique = updated.filter((c, i, arr) => arr.findIndex((x) => x.id === c.id) === i);
-
-  if (unique.length === 0) {
-    console.log('⚠️  Aucun client trouvé. Vérifiez les noms dans Supabase.');
+  if (fetchError || !allClients?.length) {
+    console.log('⚠️  Aucun client trouvé.');
     process.exit(0);
   }
 
-  console.log(`✅ ${unique.length} client(s) réinitialisé(s) :\n`);
-  unique.forEach((c) => {
+  const ids = allClients.map((c) => c.id);
+  const { data: updated, error } = await supabase
+    .from('clients')
+    .update({
+      relance_envoyee_at: null,
+      date_relance: dateRelance,
+    })
+    .in('id', ids)
+    .select('id, prenom, nom, telephone, date_relance, relance_envoyee_at');
+
+  if (error) {
+    console.error('❌ Erreur Supabase:', error.message);
+    process.exit(1);
+  }
+
+  if (!updated || updated.length === 0) {
+    console.log('⚠️  Aucun client trouvé.');
+    process.exit(0);
+  }
+
+  console.log(`✅ ${updated.length} client(s) réinitialisé(s) :\n`);
+  updated.forEach((c) => {
     console.log(`   • ${c.prenom} ${c.nom} (${c.telephone})`);
     console.log(`     date_relance: ${c.date_relance}`);
     console.log(`     relance_envoyee_at: ${c.relance_envoyee_at || 'null'}\n`);
