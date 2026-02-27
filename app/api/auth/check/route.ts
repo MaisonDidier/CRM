@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Diagnostic : vérifie que CRM_PASSWORD est chargé (sans révéler la valeur).
- * À supprimer après vérification.
+ * Force un rebuild pour recharger les env vars Vercel.
  */
 export async function GET() {
   const pwd = process.env.CRM_PASSWORD;
