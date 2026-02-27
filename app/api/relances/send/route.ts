@@ -249,9 +249,9 @@ export async function POST(request: Request) {
       const client = clients[i];
       let smsSent = false;
 
-      // Délai entre chaque envoi pour éviter les limites Brevo (2e client parfois ignoré sans délai)
+      // Délai 5s entre chaque envoi (certains clients ne reçoivent pas avec 2s)
       if (i > 0) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 5000));
       }
 
       if (USE_SMS) {
