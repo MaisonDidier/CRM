@@ -177,21 +177,20 @@ export default function ClientCard({
               >
                 18 mois
               </button>
-              <label
-                htmlFor={dateInputId}
-                className={`px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 cursor-pointer inline-block ${isUpdating ? "opacity-50 pointer-events-none" : ""}`}
-              >
-                Personnalisé
-              </label>
-              <input
-                id={dateInputId}
-                ref={dateInputRef}
-                type="date"
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={handleCustomDateChange}
-                disabled={isUpdating}
-                className="sr-only"
-              />
+              <span className={`relative inline-block ${isUpdating ? "opacity-50 pointer-events-none" : ""}`}>
+                <span className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 inline-block">
+                  Personnalisé
+                </span>
+                <input
+                  id={dateInputId}
+                  ref={dateInputRef}
+                  type="date"
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={handleCustomDateChange}
+                  disabled={isUpdating}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </span>
               {client.date_relance && (
                 <button
                   onClick={() => setIsEditingRelance(false)}
