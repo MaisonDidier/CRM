@@ -19,7 +19,6 @@ export default function ClientCard({
 }: ClientCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isEditingRelance, setIsEditingRelance] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   const isRelanceRecent = (relanceEnvoyeeAt: string | null | undefined): boolean => {
@@ -98,25 +97,13 @@ export default function ClientCard({
     }
   };
 
-  const openCalendar = () => {
-    if (isUpdating) return;
-    setShowDatePicker(true);
-    setTimeout(() => {
-      const input = dateInputRef.current;
-      if (!input) return;
-      input.focus();
-      if (typeof input.showPicker === "function") {
-        try { input.showPicker(); } catch {}
-      }
-    }, 100);
-  };
+  const dateInputId = `date-picker-${client.id}`;
 
   const handleCustomDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value) {
       const date = new Date(value);
       date.setHours(12, 0, 0, 0);
-      setShowDatePicker(false);
       updateRelanceDate(null, date.toISOString());
     }
   };
@@ -190,24 +177,21 @@ export default function ClientCard({
               >
                 18 mois
               </button>
-              <button
-                type="button"
-                onClick={openCalendar}
-                disabled={isUpdating}
-                className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50 cursor-pointer"
+              <label
+                htmlFor={dateInputId}
+                className={`px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 cursor-pointer inline-block ${isUpdating ? "opacity-50 pointer-events-none" : ""}`}
               >
                 Personnalisé
-              </button>
-              {showDatePicker && (
-                <input
-                  ref={dateInputRef}
-                  type="date"
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={handleCustomDateChange}
-                  disabled={isUpdating}
-                  className="px-3 py-1 text-xs border border-gray-300 rounded"
-                />
-              )}
+              </label>
+              <input
+                id={dateInputId}
+                ref={dateInputRef}
+                type="date"
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={handleCustomDateChange}
+                disabled={isUpdating}
+                className="sr-only"
+              />
               {client.date_relance && (
                 <button
                   onClick={() => setIsEditingRelance(false)}
