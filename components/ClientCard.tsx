@@ -31,13 +31,7 @@ export default function ClientCard({
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
-  const isRelanceRecent = (relanceEnvoyeeAt: string | null | undefined): boolean => {
-    if (!relanceEnvoyeeAt) return false;
-    const sentAt = new Date(relanceEnvoyeeAt).getTime();
-    const now = Date.now();
-    const twentyFourHours = 24 * 60 * 60 * 1000;
-    return now - sentAt < twentyFourHours;
-  };
+  const hasBeenRelanced = !!client.relance_envoyee_at;
 
   const formatDate = (dateString: string | null): string => {
     if (!dateString) return "Non définie";
@@ -116,8 +110,6 @@ export default function ClientCard({
     setShowDatePicker(false);
   };
 
-  const relanceRecent = isRelanceRecent(client.relance_envoyee_at);
-
   return (
     <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
       <div className="flex justify-between items-start mb-4">
@@ -127,7 +119,7 @@ export default function ClientCard({
           </h3>
           <p className="text-sm text-gray-600 mt-1">{client.telephone}</p>
         </div>
-        {relanceRecent && (
+        {hasBeenRelanced && (
           <span className="px-2 py-1 text-xs font-semibold text-white bg-green-500 rounded">
             Relancé
           </span>

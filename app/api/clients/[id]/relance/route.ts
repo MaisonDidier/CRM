@@ -33,7 +33,10 @@ export async function PUT(
 
     const { data, error } = await supabase
       .from("clients")
-      .update({ date_relance })
+      .update({
+        date_relance,
+        relance_envoyee_at: null,
+      })
       .eq("id", params.id)
       .select()
       .single();
