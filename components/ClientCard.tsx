@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Client } from "@/types/client";
 import { normalizeApostrophes } from "@/lib/validation";
 
@@ -11,6 +11,11 @@ interface ClientCardProps {
   onRelanceUpdate: () => void;
 }
 
+const MOIS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
+
 export default function ClientCard({
   client,
   onEdit,
@@ -20,7 +25,11 @@ export default function ClientCard({
   const [isUpdating, setIsUpdating] = useState(false);
   const [isEditingRelance, setIsEditingRelance] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const now = new Date();
+  const [selectedDay, setSelectedDay] = useState(now.getDate());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
   const isRelanceRecent = (relanceEnvoyeeAt: string | null | undefined): boolean => {
     if (!relanceEnvoyeeAt) return false;
@@ -98,16 +107,13 @@ export default function ClientCard({
     }
   };
 
-  const dateInputId = `date-picker-${client.id}`;
+  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
 
-  const handleCustomDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value) {
-      const date = new Date(value);
-      date.setHours(12, 0, 0, 0);
-      updateRelanceDate(null, date.toISOString());
-      setShowDatePicker(false);
-    }
+  const handleConfirmDate = () => {
+    const day = Math.min(selectedDay, daysInMonth);
+    const date = new Date(selectedYear, selectedMonth, day, 12, 0, 0, 0);
+    updateRelanceDate(null, date.toISOString());
+    setShowDatePicker(false);
   };
 
   const relanceRecent = isRelanceRecent(client.relance_envoyee_at);
@@ -196,16 +202,51 @@ export default function ClientCard({
               )}
             </div>
             {showDatePicker && (
-              <div className="mt-2">
-                <input
-                  id={dateInputId}
-                  ref={dateInputRef}
-                  type="date"
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={handleCustomDateChange}
-                  disabled={isUpdating}
-                  className="w-full px-3 py-2 text-sm border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+              <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(Number(e.target.value))}
+                    className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded-md bg-white"
+                  >
+                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                    className="flex-[2] px-2 py-2 text-sm border border-gray-300 rounded-md bg-white"
+                  >
+                    {MOIS.map((m, i) => (
+                      <option key={i} value={i}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className="flex-1 px-2 py-2 text-sm border border-gray-300 rounded-md bg-white"
+                  >
+                    {Array.from({ length: 5 }, (_, i) => now.getFullYear() + i).map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={handleConfirmDate}
+                    disabled={isUpdating}
+                    className="flex-1 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+                  >
+                    Valider
+                  </button>
+                  <button
+                    onClick={() => setShowDatePicker(false)}
+                    className="px-3 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Annuler
+                  </button>
+                </div>
               </div>
             )}
           </>
