@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
-import { timingSafeEqual } from "crypto";
+import { timingSafeEqual, scryptSync } from "crypto";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 const SESSION_COOKIE_NAME = "crm_session";
 
@@ -58,25 +59,39 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 
 export async function verifyPassword(password: string): Promise<boolean> {
+  const input = password.trim();
+  const sessionSecret = getSessionSecret();
+
+  // 1. Priorité : mot de passe depuis Supabase (contourne les bugs Vercel env)
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: hash, error } = await supabase.rpc("get_config", {
+        p_key: "crm_password_hash",
+      });
+      if (!error && hash && typeof hash === "string") {
+        const inputHash = scryptSync(input, sessionSecret, 64).toString("base64");
+        return timingSafeEqual(Buffer.from(inputHash, "utf8"), Buffer.from(hash, "utf8"));
+      }
+    } catch {
+      // Fallback vers CRM_PASSWORD
+    }
+  }
+
+  // 2. Fallback : variable d'environnement CRM_PASSWORD
   const correctPassword = process.env.CRM_PASSWORD;
   if (!correctPassword) {
-    // Ne pas logger d'informations sensibles en production
     if (process.env.NODE_ENV !== "production") {
-      console.error("❌ CRM_PASSWORD n'est pas défini dans process.env");
+      console.error("❌ CRM_PASSWORD non défini et Supabase sans hash");
     }
-    throw new Error("CRM_PASSWORD n'est pas configuré dans les variables d'environnement");
+    throw new Error("Mot de passe non configuré (Supabase ou CRM_PASSWORD)");
   }
-  
-  // Comparaison sécurisée contre les attaques par timing
-  const inputBuffer = Buffer.from(password.trim(), "utf8");
+
+  const inputBuffer = Buffer.from(input, "utf8");
   const correctBuffer = Buffer.from(correctPassword.trim(), "utf8");
-  
   if (inputBuffer.length !== correctBuffer.length) {
-    // Délai constant même en cas d'échec
     timingSafeEqual(Buffer.alloc(correctBuffer.length), Buffer.alloc(correctBuffer.length));
     return false;
   }
-  
   return timingSafeEqual(inputBuffer, correctBuffer);
 }
 

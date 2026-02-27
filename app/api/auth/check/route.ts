@@ -1,16 +1,33 @@
 import { NextResponse } from "next/server";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Diagnostic : vérifie que CRM_PASSWORD est chargé (sans révéler la valeur).
- * Force un rebuild pour recharger les env vars Vercel.
+ * Diagnostic : source du mot de passe (Supabase ou env).
  */
 export async function GET() {
-  const pwd = process.env.CRM_PASSWORD;
+  let source = "env";
+  let configured = !!process.env.CRM_PASSWORD;
+
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: hash } = await supabase.rpc("get_config", {
+        p_key: "crm_password_hash",
+      });
+      if (hash) {
+        source = "supabase";
+        configured = true;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return NextResponse.json({
-    configured: !!pwd,
-    length: pwd?.length ?? 0,
-    hint: pwd ? "clukoptic = 9 caractères" : "non configuré",
+    source,
+    configured,
+    envLength: process.env.CRM_PASSWORD?.length ?? 0,
+    hint: source === "supabase" ? "Mot de passe depuis Supabase" : "Mot de passe depuis CRM_PASSWORD",
   });
 }

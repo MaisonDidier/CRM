@@ -1,5 +1,30 @@
 # Guide : Configuration du mot de passe
 
+## 🆕 Méthode Supabase (recommandée, contourne les bugs Vercel)
+
+Si le mot de passe défini dans les variables Vercel ne fonctionne pas, stockez-le dans Supabase :
+
+### Étape 1 : Créer la table et la fonction
+
+Dans l’**éditeur SQL Supabase**, exécutez le contenu de `supabase-auth-config.sql`.
+
+### Étape 2 : Générer et insérer le hash
+
+En local :
+```bash
+node scripts/generate-password-hash.js clukoptic
+```
+
+Le script affiche un `INSERT`. Exécutez cet `INSERT` dans l’éditeur SQL Supabase.
+
+### Étape 3 : Vérifier
+
+Ouvrez `/api/auth/check` : vous devez voir `"source": "supabase"`.
+
+**Important :** Le `SESSION_SECRET` dans `.env.local` et sur Vercel doit être le même que celui utilisé pour générer le hash.
+
+---
+
 ## ⚠️ PROBLÈME DÉTECTÉ
 
 Votre fichier `.env.local` contient encore la valeur par défaut :
