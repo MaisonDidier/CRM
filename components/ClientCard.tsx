@@ -19,6 +19,7 @@ export default function ClientCard({
 }: ClientCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isEditingRelance, setIsEditingRelance] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   const isRelanceRecent = (relanceEnvoyeeAt: string | null | undefined): boolean => {
@@ -105,6 +106,7 @@ export default function ClientCard({
       const date = new Date(value);
       date.setHours(12, 0, 0, 0);
       updateRelanceDate(null, date.toISOString());
+      setShowDatePicker(false);
     }
   };
 
@@ -177,10 +179,24 @@ export default function ClientCard({
               >
                 18 mois
               </button>
-              <span className={`relative inline-block ${isUpdating ? "opacity-50 pointer-events-none" : ""}`}>
-                <span className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 inline-block">
-                  Personnalisé
-                </span>
+              <button
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                disabled={isUpdating}
+                className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50"
+              >
+                Personnalisé
+              </button>
+              {client.date_relance && (
+                <button
+                  onClick={() => { setIsEditingRelance(false); setShowDatePicker(false); }}
+                  className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                >
+                  Annuler
+                </button>
+              )}
+            </div>
+            {showDatePicker && (
+              <div className="mt-2">
                 <input
                   id={dateInputId}
                   ref={dateInputRef}
@@ -188,18 +204,10 @@ export default function ClientCard({
                   min={new Date().toISOString().slice(0, 10)}
                   onChange={handleCustomDateChange}
                   disabled={isUpdating}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="w-full px-3 py-2 text-sm border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
-              </span>
-              {client.date_relance && (
-                <button
-                  onClick={() => setIsEditingRelance(false)}
-                  className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                >
-                  Annuler
-                </button>
-              )}
-            </div>
+              </div>
+            )}
           </>
         )}
       </div>
