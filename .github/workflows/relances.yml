@@ -1,24 +1,16 @@
-# Relances automatiques - s'exécute tous les jours à 12h05 Paris (11h05 UTC)
-name: Relances quotidiennes
+SELECT cron.unschedule('relances-quotidiennes');
 
-on:
-  schedule:
-              # 9h15 Paris = 8h15 UTC (heure d'hiver)
-       - cron: '15 8 * * *'
-  workflow_dispatch:  # Permet de déclencher manuellement
-
-jobs:
-  send-relances:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Appeler l'API des relances
-        run: |
-          response=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.APP_URL }}/api/relances/send" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | sed '$d')
-          echo "Status: $http_code"
-          echo "Réponse: $body"
-          if [ "$http_code" != "200" ]; then
-            exit 1
-          fi
+SELECT cron.schedule(
+  'relances-quotidiennes',
+  '50 9 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://crm-sable-two.vercel.app/api/relances/send',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer 2GWnyAlcUoIr9W7SAU+LOXbqujyvyFCVycHhEwWCmV8='
+    ),
+    body := '{}'
+  );
+  $$
+);
