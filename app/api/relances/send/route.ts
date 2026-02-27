@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { normalizeApostrophes } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const USE_SMS = !!process.env.BREVO_API_KEY;
 
@@ -32,13 +33,31 @@ async function sendSMS(
     const rawMessage = (client.message_relance || "").replace("{{prenom}}", prenom);
     const content = normalizeApostrophes(rawMessage);
 
+    if (!content || content.trim().length === 0) {
+      console.error(`Message vide pour ${client.prenom} ${client.nom} - SMS non envoyé`);
+      debugError?.({ message: "Message de relance vide", client: `${client.prenom} ${client.nom}` });
+      return false;
+    }
+
     let recipient = client.telephone.replace(/[\s\-\.\(\)]/g, "");
+    if (!recipient || recipient.length < 6) {
+      console.error(`Numéro invalide pour ${client.prenom} ${client.nom}: "${client.telephone}"`);
+      debugError?.({ message: "Numéro trop court ou vide", raw: client.telephone });
+      return false;
+    }
     if (recipient.startsWith("+33")) {
       recipient = "33" + recipient.substring(3);
+    } else if (recipient.startsWith("0033")) {
+      recipient = "33" + recipient.substring(4);
     } else if (recipient.startsWith("0")) {
       recipient = "33" + recipient.substring(1);
     } else if (recipient.startsWith("+")) {
       recipient = recipient.substring(1);
+    }
+    if (!/^\d+$/.test(recipient)) {
+      console.error(`Numéro contient des caractères invalides pour ${client.prenom} ${client.nom}: "${recipient}"`);
+      debugError?.({ message: "Numéro contient des caractères non numériques", formatted: recipient, raw: client.telephone });
+      return false;
     }
 
     const response = await fetch("https://api.brevo.com/v3/transactionalSMS/send", {
@@ -173,7 +192,8 @@ function isAuthorized(request: Request): boolean {
 }
 
 /**
- * GET : diagnostic sans envoi - vérifie la config et liste les clients éligibles
+ * GET : appelé par le Vercel cron - envoie les relances (comme POST)
+ * Sert aussi de filet de sécurité si le pg_cron Supabase a raté des clients
  */
 export async function GET(request: Request) {
   try {
@@ -190,19 +210,16 @@ export async function GET(request: Request) {
       });
     }
 
-    const clients = await getClientsToRelance();
-    const todayStr = getTodayParis();
-    const offset = getParisOffset().replace("GMT", "");
-    const endOfTodayParis = new Date(`${todayStr}T23:59:59.999${offset}`);
-    const endOfTodayUTC = endOfTodayParis.toISOString();
+    const url = new URL(request.url);
+    const diagnosticOnly = url.searchParams.get("diagnostic") === "1";
 
-    return NextResponse.json({
-      ok: true,
-      diagnostic: {
-        todayParis: todayStr,
-        endOfTodayUTC,
+    const clients = await getClientsToRelance();
+
+    if (diagnosticOnly || clients.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        todayParis: getTodayParis(),
         useSms: USE_SMS,
-        hasBrevoKey: !!process.env.BREVO_API_KEY,
         clientsEligibles: clients.length,
         clients: clients.map((c) => ({
           prenom: c.prenom,
@@ -210,10 +227,12 @@ export async function GET(request: Request) {
           telephone: c.telephone,
           date_relance: c.date_relance,
         })),
-      },
-    });
+      });
+    }
+
+    return await processRelances(clients, false);
   } catch (error) {
-    console.error("Erreur diagnostic relances:", error);
+    console.error("Erreur relances (GET):", error);
     return NextResponse.json(
       { ok: false, error: String(error) },
       { status: 500 }
@@ -221,8 +240,78 @@ export async function GET(request: Request) {
   }
 }
 
+async function processRelances(
+  clients: RelanceClient[],
+  debugMode: boolean
+): Promise<NextResponse> {
+  const results = [];
+  const debugErrors: { client: string; error: unknown }[] = [];
+  const debugBrevoResponses: { client: string; response: unknown }[] = [];
+
+  for (let i = 0; i < clients.length; i++) {
+    const client = clients[i];
+    let smsSent = false;
+
+    if (i > 0) {
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+
+    const startTime = Date.now();
+
+    if (USE_SMS) {
+      smsSent = await sendSMS(
+        client,
+        (err) => {
+          console.error(`SMS échoué pour ${client.prenom} ${client.nom}:`, err);
+          debugErrors.push({ client: `${client.prenom} ${client.nom}`, error: err });
+        },
+        (res) => {
+          debugBrevoResponses.push({ client: `${client.prenom} ${client.nom}`, response: res });
+        }
+      );
+    }
+
+    const elapsed = Date.now() - startTime;
+
+    if (smsSent) {
+      await markRelanceSent(client.id);
+    }
+
+    results.push({
+      clientId: client.id,
+      name: `${client.prenom} ${client.nom}`,
+      telephone: client.telephone,
+      smsSent,
+      elapsedMs: elapsed,
+    });
+  }
+
+  const sent = results.filter((r) => r.smsSent).length;
+  const failed = results.filter((r) => !r.smsSent).length;
+
+  const response: Record<string, unknown> = {
+    success: true,
+    summary: `${sent} envoyé(s), ${failed} échoué(s) sur ${clients.length} client(s)`,
+    clientsFound: clients.length,
+    clientsProcessed: results.length,
+    smsSent: sent,
+    smsFailed: failed,
+    todayParis: getTodayParis(),
+    results,
+  };
+
+  if (debugErrors.length > 0) {
+    response.smsErrors = debugErrors;
+  }
+  if (debugMode || debugBrevoResponses.length > 0) {
+    response.brevoResponses = debugBrevoResponses;
+  }
+
+  return NextResponse.json(response);
+}
+
 /**
- * POST : envoie les relances (appelé par le cron job ou manuellement)
+ * POST : envoie les relances (appelé par le pg_cron Supabase)
  */
 export async function POST(request: Request) {
   try {
@@ -240,63 +329,9 @@ export async function POST(request: Request) {
     }
 
     const clients = await getClientsToRelance();
-    const results = [];
     const debugMode = request.headers.get("x-debug") === "1";
-    const debugErrors: { client: string; error: unknown }[] = [];
-    const debugBrevoResponses: { client: string; response: unknown }[] = [];
 
-    for (let i = 0; i < clients.length; i++) {
-      const client = clients[i];
-      let smsSent = false;
-
-      // Délai 5s entre chaque envoi (certains clients ne reçoivent pas avec 2s)
-      if (i > 0) {
-        await new Promise((r) => setTimeout(r, 5000));
-      }
-
-      if (USE_SMS) {
-        smsSent = await sendSMS(
-          client,
-          (err) => {
-            console.error(`SMS échoué pour ${client.prenom} ${client.nom}:`, err);
-            if (debugMode) debugErrors.push({ client: `${client.prenom} ${client.nom}`, error: err });
-          },
-          (res) => {
-            if (debugMode) debugBrevoResponses.push({ client: `${client.prenom} ${client.nom}`, response: res });
-          }
-        );
-      }
-
-      if (smsSent) {
-        await markRelanceSent(client.id);
-        results.push({
-          clientId: client.id,
-          name: `${client.prenom} ${client.nom}`,
-          smsSent,
-        });
-      }
-    }
-
-    const response: Record<string, unknown> = {
-      success: true,
-      clientsProcessed: results.length,
-      results,
-    };
-    if (debugMode) {
-      response.debug = {
-        clientsFound: clients.length,
-        useSms: USE_SMS,
-        todayParis: getTodayParis(),
-        smsErrors: debugErrors.length > 0 ? debugErrors : undefined,
-        brevoResponses: debugBrevoResponses,
-        clients: clients.map((c) => ({
-          name: `${c.prenom} ${c.nom}`,
-          telephone: c.telephone,
-          date_relance: c.date_relance,
-        })),
-      };
-    }
-    return NextResponse.json(response);
+    return await processRelances(clients, debugMode);
   } catch (error) {
     console.error("Erreur lors de l'envoi des relances:", error);
     return NextResponse.json(
