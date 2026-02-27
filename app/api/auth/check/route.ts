@@ -13,7 +13,7 @@ export async function GET() {
   if (isSupabaseConfigured()) {
     try {
       const { data: hash } = await supabase.rpc("get_config", {
-        p_key: "crm_password_hash",
+        p_key: "crm_password",
       });
       if (hash) {
         source = "supabase";

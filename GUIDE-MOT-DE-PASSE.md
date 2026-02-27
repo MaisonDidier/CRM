@@ -4,24 +4,15 @@
 
 Si le mot de passe défini dans les variables Vercel ne fonctionne pas, stockez-le dans Supabase :
 
-### Étape 1 : Créer la table et la fonction
+### Étape 1 : Exécuter le script SQL
 
-Dans l’**éditeur SQL Supabase**, exécutez le contenu de `supabase-auth-config.sql`.
+Dans l’**éditeur SQL Supabase**, exécutez tout le contenu de `supabase-auth-config.sql`.
 
-### Étape 2 : Générer et insérer le hash
+Cela crée la table, la fonction et insère le mot de passe `clukoptic`. Modifiez la dernière ligne si vous voulez un autre mot de passe.
 
-En local :
-```bash
-node scripts/generate-password-hash.js clukoptic
-```
+### Étape 2 : Vérifier
 
-Le script affiche un `INSERT`. Exécutez cet `INSERT` dans l’éditeur SQL Supabase.
-
-### Étape 3 : Vérifier
-
-Ouvrez `/api/auth/check` : vous devez voir `"source": "supabase"`.
-
-**Important :** Le `SESSION_SECRET` dans `.env.local` et sur Vercel doit être le même que celui utilisé pour générer le hash.
+Ouvrez `/api/auth/check` : vous devez voir `"source": "supabase"` et `"configured": true`.
 
 ---
 

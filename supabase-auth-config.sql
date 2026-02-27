@@ -1,7 +1,6 @@
 -- Mot de passe stocké dans Supabase (contourne les soucis de variables Vercel)
 -- 1. Exécutez ce script dans l'éditeur SQL Supabase
--- 2. Puis: node scripts/generate-password-hash.js
--- 3. Exécutez l'INSERT généré dans Supabase
+-- 2. Modifiez 'clukoptic' si besoin, puis exécutez l'INSERT en bas
 
 CREATE TABLE IF NOT EXISTS site_config (
   key TEXT PRIMARY KEY,
@@ -25,3 +24,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION get_config(TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION get_config(TEXT) TO authenticated;
+
+-- Mot de passe en clair (modifiez 'clukoptic' si besoin)
+INSERT INTO site_config (key, value) VALUES ('crm_password', 'clukoptic')
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();

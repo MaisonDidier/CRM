@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { timingSafeEqual, scryptSync } from "crypto";
+import { timingSafeEqual } from "crypto";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 const SESSION_COOKIE_NAME = "crm_session";
@@ -60,17 +60,22 @@ export async function isAuthenticated(): Promise<boolean> {
 
 export async function verifyPassword(password: string): Promise<boolean> {
   const input = password.trim();
-  const sessionSecret = getSessionSecret();
 
   // 1. Priorité : mot de passe depuis Supabase (contourne les bugs Vercel env)
   if (isSupabaseConfigured()) {
     try {
-      const { data: hash, error } = await supabase.rpc("get_config", {
-        p_key: "crm_password_hash",
+      const { data: storedPassword, error } = await supabase.rpc("get_config", {
+        p_key: "crm_password",
       });
-      if (!error && hash && typeof hash === "string") {
-        const inputHash = scryptSync(input, sessionSecret, 64).toString("base64");
-        return timingSafeEqual(Buffer.from(inputHash, "utf8"), Buffer.from(hash, "utf8"));
+      if (!error && storedPassword && typeof storedPassword === "string") {
+        const correct = storedPassword.trim();
+        const inputBuffer = Buffer.from(input, "utf8");
+        const correctBuffer = Buffer.from(correct, "utf8");
+        if (inputBuffer.length !== correctBuffer.length) {
+          timingSafeEqual(Buffer.alloc(correctBuffer.length), Buffer.alloc(correctBuffer.length));
+          return false;
+        }
+        return timingSafeEqual(inputBuffer, correctBuffer);
       }
     } catch {
       // Fallback vers CRM_PASSWORD
