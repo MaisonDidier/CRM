@@ -17,14 +17,14 @@ export async function createSession(rememberMe: boolean = false) {
   const sessionSecret = getSessionSecret();
 
   // Durée de la session : 7 jours par défaut, 30 jours si "Rester connecté"
-  const maxAge = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7;
+  const maxAgeSeconds = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7;
 
   cookieStore.set(SESSION_COOKIE_NAME, sessionSecret, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge,
+    sameSite: "lax",
     path: "/",
+    maxAge: maxAgeSeconds,
   });
 }
 
