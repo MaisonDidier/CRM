@@ -122,6 +122,17 @@ export function validatePhoneNumber(phone: string): boolean {
   );
 }
 
+/**
+ * Formate un numéro pour l'affichage : espace tous les 2 chiffres
+ * Ex: 0612345678 → 06 12 34 56 78
+ */
+export function formatPhoneForDisplay(phone: string): string {
+  if (!phone || typeof phone !== "string") return "";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 0) return phone;
+  return digits.match(/.{1,2}/g)?.join(" ") ?? phone;
+}
+
 // Fonction de validation du message de relance
 export function validateMessage(message: string): { valid: boolean; error?: string } {
   if (typeof message !== "string") {

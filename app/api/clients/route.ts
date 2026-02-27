@@ -22,7 +22,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from("clients")
       .select("*")
-      .order("date_relance", { ascending: true });
+      .order("created_at", { ascending: false });
 
     if (error) {
       throw error;

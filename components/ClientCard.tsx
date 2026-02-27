@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Client } from "@/types/client";
-import { normalizeApostrophes } from "@/lib/validation";
+import { normalizeApostrophes, formatPhoneForDisplay } from "@/lib/validation";
 
 interface ClientCardProps {
   client: Client;
@@ -117,7 +117,7 @@ export default function ClientCard({
           <h3 className="text-lg font-semibold text-gray-900">
             {normalizeApostrophes(client.prenom)} {normalizeApostrophes(client.nom)}
           </h3>
-          <p className="text-sm text-gray-600 mt-1">{client.telephone}</p>
+          <p className="text-sm text-gray-600 mt-1">{formatPhoneForDisplay(client.telephone)}</p>
         </div>
         {hasBeenRelanced && (
           <span className="px-2 py-1 text-xs font-semibold text-white bg-green-500 rounded">
